@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Question from './Question';
+import moment from 'moment';
 
 const Home = () => {
     const navigate = useNavigate();
     const [mode, setMode] = useState(localStorage.getItem('mode') || "");
+    const [startDateTime, setStartDateTime] = useState(localStorage.getItem('startDateTime') || "");
+    // const [finishDateTime, setFinishDateTime] = useState(localStorage.getItem('finishDateTime') || "");
+    const [remainingTime, setRemainingTime] = useState(0);
     const [currentQuest, setCurrentQuest] = useState(0);
     const [finishQuest, setFinishQuest] = useState(false);
     const [answers, setAnswers] = useState(JSON.parse(localStorage.getItem('answers')) || []);
@@ -63,28 +67,41 @@ const Home = () => {
         },
     ];
 
-    const [totalTime, setTotalTime] = useState(questionData.length * 60);
-    const [remainingTime, setRemainingTime] = useState(totalTime);
+    const totalTime = questionData.length * 60;
+
+    const [countdown, setCountdown] = useState("");
 
     const handleStartClick = () => {
+        const datetimeStart = new Date();
+        setStartDateTime(datetimeStart);
+        localStorage.setItem("startDateTime", datetimeStart);
+
         setMode("quest");
         localStorage.setItem("mode", "quest")
-        localStorage.removeItem("answers")
-        setAnswers([])
-        setTotalTime(questionData.length * 60);
-        setRemainingTime(totalTime);
-        const countdownInterval = setInterval(() => {
-            setRemainingTime((prevTime) => {
-                if (prevTime > 0) {
-                    return prevTime - 1;
-                } else {
-                    clearInterval(countdownInterval);
-                    setFinishQuest(true);
-                    return 0;
-                }
-            });
-        }, 1000);
     };
+
+    useEffect(() => {
+        const updateCountdown = () => {
+            if (startDateTime !== "" && !finishQuest) {
+                const now = moment();
+                const startTime = moment(startDateTime);
+                const elapsedSeconds = now.diff(startTime, 'seconds');
+                const remainingSeconds = Math.max(0, totalTime - elapsedSeconds);
+
+                const duration = moment.duration(remainingSeconds, 'seconds');
+                const minutes = Math.floor(duration.asMinutes());
+                const seconds = duration.seconds();
+
+                setRemainingTime(remainingSeconds);
+                setCountdown(`${minutes}:${seconds.toLocaleString('en-US', { minimumIntegerDigits: 2 })}`);
+            }
+        };
+
+        const countdownInterval = setInterval(updateCountdown, 1000);
+
+        return () => clearInterval(countdownInterval);
+    }, [startDateTime, finishQuest, totalTime]);
+    // console.log('count', countdown)
 
     const handleAnswerSubmit = () => {
         localStorage.setItem("answers", JSON.stringify(answers));
@@ -94,6 +111,7 @@ const Home = () => {
         setMode("")
         localStorage.removeItem("answers")
         localStorage.removeItem("mode")
+        localStorage.removeItem("startDateTime")
     };
 
     const handleNextQuest = () => {
@@ -120,10 +138,13 @@ const Home = () => {
     }, [currentQuest])
 
     useEffect(() => {
-        if (remainingTime === 0) {
+        if (countdown === "0:00") {
+            setMode("");
+            localStorage.removeItem("mode")
+            localStorage.removeItem("startDateTime")
             navigate("/results", { state: { answers, questionData } });
         }
-    }, [remainingTime])
+    }, [countdown])
 
     return (
         <div className='flex items-center justify-center h-screen bg-gradient-to-br from-purple-400 to-pink-500'>
@@ -148,7 +169,7 @@ const Home = () => {
                         onNextClick={handleNextQuest}
                     />
                     <div className="">
-                        <h2 className="text-center text-2xl font-bold text-white m-2">{Math.floor(remainingTime / 60) + "m"}:{(remainingTime % 60).toLocaleString('en-US', { minimumIntegerDigits: 2 })}</h2>
+                        <h2 className="text-center text-2xl font-bold text-white m-2">{countdown}</h2>
                     </div>
                     <div className="mb-4 mt-auto text-white text-center">
                         &copy; 2024 Badrudin
